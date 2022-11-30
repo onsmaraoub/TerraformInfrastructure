@@ -1,0 +1,78 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- none
+
+pool:
+  vmImage: ubuntu-latest
+
+#variables for backend storage account, they will be used in the configuration of terraform 
+# here we can add backend resource group name, backend storage account, blob container and backend storage key
+variables:
+  bksrtgrg: terraform-state-rg
+  bksrtg: tfstategmc
+  bkcontainer: tfstatelock
+  bkstrgkey: tfkey 
+
+stages:
+  - stage: tfvalidate
+    jobs:
+      - job: validate
+        continueOnError: false
+        steps:
+          - task: TerraformInstaller@0
+            displayName: tfinstall
+            inputs:
+              terraformVersion: 'latest'
+          - task: TerraformTaskV3@3
+            displayName: init  
+            inputs:
+              provider: azurerm
+              command: 'init'
+              backendServiceArm:
+              backendAzureRmResourceGroupName: '($bksrtgrg)'
+              backendAzureRmStorageAccountName: '($tfstategmc)'
+              backendAzureRmContainerName: '$(tfstatelock)'
+              backendAzureRmKey: '$(tfkey)'
+          - task: TerraformTaskV3@3
+            displayName: validate  
+            inputs:
+              provider: azurerm
+              command: 'validate'
+  - stage: tfdeploy
+    condition: succeeded('tfvalidate')
+    dependsOn: tfvalidate
+    jobs:
+      - job: apply
+        steps:
+          - task: TerraformTaskV3@3
+            displayName: init 
+            inputs:
+              provider: azurerm
+              command: 'init'
+              backendServiceArm:
+              backendAzureRmResourceGroupName: '($bksrtgrg)'
+              backendAzureRmStorageAccountName: '($tfstategmc)'
+              backendAzureRmContainerName: '$(tfstatelock)'
+              backendAzureRmKey: '$(tfkey)'
+          - task: TerraformTaskV3@3
+            displayName: plan  
+            inputs:
+              provider: azurerm
+              command: 'plan'
+              environmentServiceNameAzureRM: 'nameofsubscription'
+
+          - task: TerraformTaskV3@3
+            displayName: apply  
+            inputs:
+              provider: azurerm
+              command: 'apply' 
+              environmentServiceNameAzureRM: 'nameofsubscription'
+              
+
+          
+             
+               
